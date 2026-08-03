@@ -92,21 +92,18 @@ Windows Terminal 설정은 손대지 않습니다. 그래서 README 에 "설치 
 CaskaydiaCove NF 로 직접 바꾸세요"라고 적혀 있고, 그 전까지 프롬프트 아이콘이
 전부 두부(□)로 보입니다. 이 리포는 그 단계를 없앴습니다.
 
-## 알아둘 함정
+각 항목의 근거와 "왜 이렇게 골랐는지"는 [docs/comparison.md](docs/comparison.md) 에 있습니다.
 
-직접 고칠 때 걸릴 만한 것들입니다.
+## 문서
 
-- **테마를 고쳤는데 반영이 안 될 때** — oh-my-posh v26+ 는 설정을 캐시합니다.
-  `oh-my-posh cache clear` 를 실행하세요. 캐시가 살아 있으면 프롬프트에
-  `CONFIG NOT FOUND` 가 그대로 뜹니다.
-- **테마 JSON 을 편집할 때** — 구분자 글리프(``, U+E0B0)는 유니코드 사설 사용
-  영역에 있습니다. 반드시 **UTF-8** 로 저장하세요. ANSI 로 저장하면 글리프가
-  깨지면서 JSON 문자열까지 망가집니다.
-- **PowerShell 5.1 에서 이 파일들을 읽을 때** — 5.1 의 `Get-Content` 는 BOM 없는
-  UTF-8 을 ANSI 로 오독합니다. `[System.IO.File]::ReadAllText($p, [Text.Encoding]::UTF8)`
-  를 쓰세요.
-- **winget 설치 직후 `zoxide` 를 못 찾을 때** — PATH 가 현재 세션에 반영되지
-  않아서입니다. 터미널을 새로 열거나 레지스트리에서 PATH 를 다시 읽으세요.
+| 문서 | 내용 |
+|---|---|
+| [how-it-works.md](docs/how-it-works.md) | **원리.** 터미널은 왜 4개 층인가, ANSI 이스케이프란 무엇인가, 셸이 색을 칠하지 않는다는 게 무슨 뜻인가 |
+| [comparison.md](docs/comparison.md) | 기존 프로젝트 조사 결과와 설계 판단 근거 |
+| [troubleshooting.md](docs/troubleshooting.md) | 두부(□), `CONFIG NOT FOUND`, 인코딩 깨짐, PATH 미반영 등 |
+
+직접 고치다 막히면 [troubleshooting.md](docs/troubleshooting.md) 부터 보세요.
+거기 적힌 건 전부 이 리포를 만들면서 실제로 밟은 지뢰입니다.
 
 ## 요구 사항
 
