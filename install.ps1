@@ -14,7 +14,7 @@
     기본 배색. Snazzy(기본) / Tokyo Night Storm / Dracula / Nord
 
 .EXAMPLE
-    irm https://raw.githubusercontent.com/USER/win-iterm2/main/install.ps1 | iex
+    irm https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1 | iex
 
 .EXAMPLE
     .\install.ps1 -Scheme 'Tokyo Night Storm' -Opacity 100
@@ -35,7 +35,7 @@ param(
     [switch]$SkipFont,
     [switch]$SkipTerminalSettings,
 
-    [string]$Repo = 'USER/win-iterm2',
+    [string]$Repo = 'jsk3342/win-iterm2',
     [string]$Branch = 'main'
 )
 

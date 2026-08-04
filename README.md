@@ -4,7 +4,7 @@
 관리자 권한이 필요 없고, 여러 번 실행해도 안전합니다.
 
 ```powershell
-irm https://raw.githubusercontent.com/USER/win-iterm2/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1 | iex
 ```
 
 설치가 끝나면 Windows Terminal 을 새로 열기만 하면 됩니다. **폰트를 수동으로 바꿀 필요가 없습니다.**
