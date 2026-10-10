@@ -14,7 +14,7 @@
     기본 배색. Snazzy(기본) / Tokyo Night Storm / Dracula / Nord
 
 .EXAMPLE
-    irm https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1 | iex
+    $p=Join-Path $env:TEMP 'win-iterm2-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1' -OutFile $p; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $p
 
 .EXAMPLE
     .\install.ps1 -Scheme 'Tokyo Night Storm' -Opacity 100

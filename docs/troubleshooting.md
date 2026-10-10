@@ -5,6 +5,27 @@
 
 ---
 
+## 설치 시작부터 `대입식이 잘못되었습니다`가 뜬다
+
+**증상** — 예전 설치 명령인 `irm <주소> | iex`를 실행하자 `[CmdletBinding()]`,
+`param(...)`, 파라미터 기본값 줄에서 `대입식이 잘못되었습니다`가 연달아 나옴.
+
+**원인** — `install.ps1`에는 Windows PowerShell 5.1에서 한글을 보존하기 위한 UTF-8
+BOM이 있습니다. 파일로 실행할 때는 정상이지만, `irm`이 반환한 문자열을 곧바로
+`iex`에 넘기면 BOM이 숨은 첫 문자로 남습니다. 그러면 `param(...)`이 스크립트의
+첫 구문으로 인식되지 않아 파서 오류가 발생합니다.
+
+**해결** — 설치 파일을 먼저 내려받은 뒤 파일로 실행합니다.
+
+```powershell
+$p=Join-Path $env:TEMP 'win-iterm2-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1' -OutFile $p; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $p
+```
+
+`install.ps1`의 BOM을 제거하는 방식은 쓰지 않습니다. 로컬 파일로 실행할 때
+PowerShell 5.1이 한글을 ANSI로 오독하는 문제를 다시 만들기 때문입니다.
+
+---
+
 ## 프롬프트에 `CONFIG NOT FOUND` 가 뜬다
 
 **증상** — 테마 파일은 멀쩡한데 프롬프트가 기본 테마로 나오고 `CONFIG NOT FOUND`
