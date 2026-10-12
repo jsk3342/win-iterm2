@@ -15,10 +15,11 @@ BOM이 있습니다. 파일로 실행할 때는 정상이지만, `irm`이 반환
 `iex`에 넘기면 BOM이 숨은 첫 문자로 남습니다. 그러면 `param(...)`이 스크립트의
 첫 구문으로 인식되지 않아 파서 오류가 발생합니다.
 
-**해결** — 설치 파일을 먼저 내려받은 뒤 파일로 실행합니다.
+**해결** — `install.ps1` 대신 BOM 없는 진입 파일 `get.ps1`을 `iex`에 넘깁니다.
+`get.ps1`이 `install.ps1`을 임시 폴더에 내려받아 파일로 실행합니다.
 
 ```powershell
-$p=Join-Path $env:TEMP 'win-iterm2-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1' -OutFile $p; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $p
+irm https://raw.githubusercontent.com/jsk3342/win-iterm2/main/get.ps1 | iex
 ```
 
 `install.ps1`의 BOM을 제거하는 방식은 쓰지 않습니다. 로컬 파일로 실행할 때

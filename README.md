@@ -4,11 +4,11 @@
 관리자 권한이 필요 없고, 여러 번 실행해도 안전합니다.
 
 ```powershell
-$p=Join-Path $env:TEMP 'win-iterm2-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1' -OutFile $p; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $p
+irm https://raw.githubusercontent.com/jsk3342/win-iterm2/main/get.ps1 | iex
 ```
 
-설치 파일을 먼저 내려받아 실행하므로 Windows PowerShell 5.1에서도 UTF-8 BOM을
-안전하게 처리합니다.
+`get.ps1`이 설치 파일을 내려받아 파일로 실행하므로 Windows PowerShell 5.1에서도
+한글(UTF-8 BOM)이 깨지지 않습니다.
 
 설치가 끝나면 Windows Terminal 을 새로 열기만 하면 됩니다. **폰트를 수동으로 바꿀 필요가 없습니다.**
 

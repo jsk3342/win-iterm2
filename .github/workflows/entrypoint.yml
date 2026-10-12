@@ -1,0 +1,30 @@
+name: entrypoint
+
+on:
+  push:
+    paths: ['get.ps1', 'install.ps1', 'README.md', 'tests/**', '.github/workflows/entrypoint.yml']
+  workflow_dispatch:
+
+jobs:
+  windows-powershell-51:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Entrypoint tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: .\tests\test-installer-entrypoint.ps1
+
+      # The exact command users paste, pinned to this commit so raw caching can't serve a stale file.
+      - name: irm get.ps1 | iex reaches install.ps1
+        shell: powershell
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'get.log'
+          irm "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/get.ps1" | iex *>&1 | Tee-Object -FilePath $log
+          Write-Host "installer exit code: $LASTEXITCODE"
+          $out = Get-Content $log -Raw
+          if ($out -match 'ParserError|Unexpected token|InvalidLeftHandSide') { throw 'get.ps1 entrypoint hit a parse error.' }
+          if ($out -notmatch 'win-iterm2' -or $out -notmatch 'Snazzy' -or $out -notmatch 'MesloLGM Nerd Font') {
+            throw 'install.ps1 banner (with default parameters) never appeared.'
+          }
+          Write-Host 'entrypoint: OK'

@@ -40,8 +40,24 @@ $readme = [System.IO.File]::ReadAllText($ReadmePath, [System.Text.Encoding]::UTF
 if ($readme -match 'install\.ps1\s*\|\s*iex') {
     throw 'README must not pipe the BOM-bearing install.ps1 directly to Invoke-Expression.'
 }
-if ($readme -notmatch 'Invoke-WebRequest[^\r\n]+-OutFile[^\r\n]+powershell\.exe') {
-    throw 'README is missing the file-based Windows PowerShell entrypoint.'
+if ($readme -notmatch 'get\.ps1\s*\|\s*iex') {
+    throw 'README is missing the get.ps1 one-line entrypoint.'
+}
+
+# get.ps1 is piped to iex, so it must be pure ASCII without a BOM.
+$GetPath = Join-Path $Root 'get.ps1'
+$getBytes = [System.IO.File]::ReadAllBytes($GetPath)
+if ($getBytes | Where-Object { $_ -gt 127 }) {
+    throw 'get.ps1 must be ASCII-only (no BOM, no Korean) to survive irm | iex.'
+}
+$getText = [System.Text.Encoding]::ASCII.GetString($getBytes)
+$errors = $null
+[System.Management.Automation.Language.Parser]::ParseInput($getText, [ref]$tokens, [ref]$errors) | Out-Null
+if ($errors.Count) {
+    throw "get.ps1 does not parse:`n$(($errors | ForEach-Object Message) -join [Environment]::NewLine)"
+}
+if ($getText -notmatch 'Invoke-WebRequest[^\r\n]+install\.ps1[^\r\n]+-OutFile' -or $getText -notmatch 'powershell\.exe[^\r\n]+-File') {
+    throw 'get.ps1 must download install.ps1 to a file and run it with -File.'
 }
 
 Write-Output 'installer-entrypoint-tests: OK'
