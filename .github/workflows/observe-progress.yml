@@ -1,0 +1,22 @@
+name: observe-progress
+on:
+  push:
+    branches: ['verify/install-stability']
+jobs:
+  observe:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Korean fonts for new consoles
+        shell: powershell
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          Add-WindowsCapability -Online -Name 'Language.Fonts.Kore~~~und-KORE~0.0.1.0' | Out-String | Write-Host
+          New-Item -Path 'HKCU:\Console' -Force | Out-Null
+          Set-ItemProperty -Path 'HKCU:\Console' -Name FaceName -Value 'GulimChe'
+          Set-ItemProperty -Path 'HKCU:\Console' -Name FontFamily -Value 54 -Type DWord
+      - name: Observe
+        shell: powershell
+        run: .\tests\observe-progress-crash.ps1

@@ -69,6 +69,8 @@ function Start-StepHeartbeat {
         $watch = [Diagnostics.Stopwatch]::StartNew()
         while ($watch.Elapsed.TotalMinutes -lt 60) {
             Start-Sleep -Seconds 15
+            # 다른 프로그램이 줄을 끝내지 않은 채 쓰는 중이면 줄을 바꿔 글이 이어 붙지 않게 합니다.
+            try { if ([Console]::CursorLeft -gt 0) { [Console]::WriteLine() } } catch { }
             [Console]::WriteLine("         설치 작업 실행 중 · 경과 $([int]$watch.Elapsed.TotalSeconds)초 · 완료 문구를 기다려주세요.")
         }
     })
@@ -116,7 +118,7 @@ function Step($msg) {
 }
 function Ok($msg) { Write-Host "    OK   $msg" -ForegroundColor Green }
 function Skip($msg) { Write-Host "    --   $msg" -ForegroundColor DarkGray }
-function Warn($msg) { $script:Problems += $msg; Write-Host "    !    $msg" -ForegroundColor Yellow }
+function Warn($msg) { $script:Problems += "[$script:StepLabel] $msg"; Write-Host "    !    $msg" -ForegroundColor Yellow }
 
 # ───────────────────────── 공통 유틸리티 ─────────────────────────
 
@@ -242,7 +244,7 @@ $r.GetEnumerator() | ForEach-Object { "CHECK {0} {1}" -f $_.Key, $(if ($_.Value)
     pwsh -NoLogo -File $vp 2>&1 | ForEach-Object {
         $line = [string]$_
         if ($line -match '^CHECK (\w+) (OK|FAIL)$') {
-            if ($Matches[2] -eq 'FAIL') { $script:Problems += "검증 실패: $($labels[$Matches[1]])" }
+            if ($Matches[2] -eq 'FAIL') { $script:Problems += "[$script:StepLabel] 검증 실패: $($labels[$Matches[1]])" }
             Write-Host "    $(Format-VerifyLine $labels[$Matches[1]] $Matches[2])"
         }
         else { Write-Host "    $line" }
@@ -469,6 +471,8 @@ if (-not $script:FontReady) {
 }
 
 if ($script:Problems.Count) {
+    # 문제마다 어느 단계인지 붙어 있어, 마지막 단계 이름을 적으면 오히려 헷갈립니다.
+    $script:StepLabel = '끝까지 진행함'
     Write-FailureReport '일부 미완료' ($script:Problems -join ' / ')
 }
 

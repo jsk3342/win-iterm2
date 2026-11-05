@@ -70,7 +70,7 @@ $r = Run-Installer @('-FontFace', 'NoSuchFontX') $null
 Check 'partial: exit code stays 0' ($r.Code -eq 0)
 Check 'partial: report is printed' ($r.Text.Contains($reportStart))
 Check 'partial: result says partly unfinished' ($r.Text.Contains($partial))
-Check 'partial: report names the font' ($r.Text -match 'NoSuchFontX')
+Check 'partial: report names the font and the step it failed on' ($r.Text -match '\[2/7 [^\]]*\][^\r\n]*NoSuchFontX')
 
 # --- winget missing: stops with an error and a report
 $noWinget = "$env:WINDIR\System32;$env:WINDIR;$env:WINDIR\System32\WindowsPowerShell\v1.0"
