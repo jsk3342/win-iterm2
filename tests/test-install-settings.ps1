@@ -55,8 +55,9 @@ Check 'font present: installer exits 0' ($r.Code -eq 0)
 Check 'font present: face is set' ($f.face -eq 'MesloLGM Nerd Font')
 
 # Font absent: a face that cannot be installed, with that name already stuck in settings.
-Set-Settings ([ordered]@{ face = 'No Such Font'; size = 11 })
-$r = Run-Installer @('-FontFace', 'No Such Font')
+# No spaces in the name: Start-Process -ArgumentList joins arguments without quoting.
+Set-Settings ([ordered]@{ face = 'NoSuchFontX'; size = 11 })
+$r = Run-Installer @('-FontFace', 'NoSuchFontX')
 $f = Get-Font
 Check 'font absent: installer still finishes' ($r.Code -eq 0)
 Check 'font absent: stale face removed from settings' ($null -eq $f.face)
@@ -64,7 +65,7 @@ Check 'font absent: size kept' ($f.size -eq 11)
 
 # Font absent, but the user picked another face: leave it alone.
 Set-Settings ([ordered]@{ face = 'Consolas'; size = 11 })
-$r = Run-Installer @('-FontFace', 'No Such Font')
+$r = Run-Installer @('-FontFace', 'NoSuchFontX')
 $f = Get-Font
 Check 'font absent: user face kept' ($f.face -eq 'Consolas')
 
