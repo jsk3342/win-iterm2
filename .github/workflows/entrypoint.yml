@@ -26,6 +26,11 @@ jobs:
         timeout-minutes: 12
         run: .\tests\test-install-settings.ps1
 
+      - name: Step 7 on a Korean console (code page 949)
+        shell: powershell
+        timeout-minutes: 5
+        run: .\tests\test-korean-console.ps1
+
       # The exact command users paste, pinned to this commit so raw caching can't serve a stale file.
       - name: irm get.ps1 | iex reaches install.ps1
         shell: powershell

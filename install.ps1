@@ -119,8 +119,10 @@ function Install-NerdFont($face) {
         # 사용자 범위(%LOCALAPPDATA%)에 설치 — 관리자 권한 불필요
         # 이름(meslo) 대신 주소를 줍니다. 이름은 GitHub API 로 찾는데, 같은 IP 를 나눠 쓰면
         # 비로그인 호출 한도에 걸려 실패합니다(CI 에서 실측). 주소는 그 조회를 건너뜁니다.
-        # Out-Host: 출력이 이 함수의 반환값에 섞이지 않게 합니다.
-        oh-my-posh font install 'https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip' | Out-Host
+        # 출력은 버립니다. 파이프로 받으면 한글 윈도우에서 진행 글자가 깨지고, 반환값에도 섞입니다.
+        # 성공 여부는 아래에서 글꼴을 직접 확인합니다.
+        Write-Host "         $face 내려받는 중 (약 120MB)..." -ForegroundColor DarkGray
+        oh-my-posh font install 'https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip' | Out-Null
         $detail = "exit $LASTEXITCODE"
     }
     catch { $detail = $_.Exception.Message }
@@ -137,6 +139,44 @@ function Resolve-FontFace($face, [bool]$fontReady, $currentFace) {
     if ($fontReady) { return $face }
     if ($currentFace -and $currentFace -ne $face) { return $currentFace }
     return $null
+}
+
+# 한글은 2칸으로 세어 왼쪽 정렬합니다. 그래야 뒤 칸의 세로줄이 맞습니다.
+function Format-VerifyLine($label, $result) {
+    $width = 0
+    foreach ($c in $label.ToCharArray()) { $width += $(if ([int]$c -gt 127) { 2 } else { 1 }) }
+    return ($label + (' ' * [Math]::Max(1, 14 - $width)) + $result)
+}
+
+# 새 프로필이 PowerShell 7 에서 실제로 동작하는지 확인합니다.
+# 파이프로 넘어오는 pwsh 출력은 UTF-8 인데 PS 5.1 은 콘솔 코드페이지(한글 윈도우는 CP949)로
+# 읽습니다. 그래서 자식은 ASCII 코드만 내보내고, 한글 이름은 여기서 붙입니다.
+function Invoke-InstallVerify {
+    $verify = @'
+. $PROFILE
+$r = [ordered]@{}
+$r['profile'] = ($Error.Count -eq 0)
+$r['prompt']  = [bool](Get-Command prompt -ErrorAction Ignore)
+$r['icons']   = [bool](Get-Module Terminal-Icons)
+$r['zoxide']  = [bool](Get-Command z -ErrorAction Ignore)
+$r['fzf']     = [bool](Get-Command fzf -ErrorAction Ignore)
+$r.GetEnumerator() | ForEach-Object { "CHECK {0} {1}" -f $_.Key, $(if ($_.Value) { 'OK' } else { 'FAIL' }) }
+'@
+    $labels = @{
+        profile = '프로필 로드'
+        prompt  = '프롬프트'
+        icons   = '아이콘'
+        zoxide  = 'zoxide (z)'
+        fzf     = 'fzf'
+    }
+    $vp = Join-Path $env:TEMP "win-iterm2-verify-$Stamp.ps1"
+    [System.IO.File]::WriteAllText($vp, $verify, (New-Object Text.UTF8Encoding($true)))
+    pwsh -NoLogo -File $vp 2>&1 | ForEach-Object {
+        $line = [string]$_
+        if ($line -match '^CHECK (\w+) (OK|FAIL)$') { Write-Host "    $(Format-VerifyLine $labels[$Matches[1]] $Matches[2])" }
+        else { Write-Host "    $line" }
+    }
+    Remove-Item $vp -Force -ErrorAction Ignore
 }
 
 # 리포를 클론했으면 로컬 파일을, `irm | iex` 로 실행했으면 GitHub raw 를 씁니다.
@@ -327,20 +367,7 @@ else {
 
 # ── 7. 검증 ──────────────────────────────────────────────────
 Step '검증'
-$verify = @'
-. $PROFILE
-$r = [ordered]@{}
-$r['프로필 로드'] = ($Error.Count -eq 0)
-$r['프롬프트']    = [bool](Get-Command prompt -ErrorAction Ignore)
-$r['아이콘']      = [bool](Get-Module Terminal-Icons)
-$r['zoxide (z)']  = [bool](Get-Command z -ErrorAction Ignore)
-$r['fzf']         = [bool](Get-Command fzf -ErrorAction Ignore)
-$r.GetEnumerator() | ForEach-Object { "{0,-12} {1}" -f $_.Key, $(if ($_.Value) { 'OK' } else { 'FAIL' }) }
-'@
-$vp = Join-Path $env:TEMP "win-iterm2-verify-$Stamp.ps1"
-[System.IO.File]::WriteAllText($vp, $verify, (New-Object Text.UTF8Encoding($true)))
-pwsh -NoLogo -File $vp 2>&1 | ForEach-Object { Write-Host "    $_" }
-Remove-Item $vp -Force -ErrorAction Ignore
+Invoke-InstallVerify
 
 Write-Host @"
 
