@@ -53,6 +53,12 @@ Check 'get.ps1 leaves the caller window setting alone' ($out -match 'AFTER=Inqui
 # --- the same guard at the top of install.ps1, ahead of every statement that can download
 $source = [IO.File]::ReadAllText((Join-Path $Root 'install.ps1'), [Text.Encoding]::UTF8)
 Check 'install.ps1 turns progress bars off' ($source -match "(?m)^\`$ProgressPreference = 'SilentlyContinue'")
+# Real Korean Windows, 2026-11-05: a progress bar over this separator raised IndexOutOfRangeException at widths 69, 71, 79.
+# Hosted runners count the separator as one cell and cannot reproduce it, so this guards the two ingredients directly.
+foreach ($file in 'get.ps1', 'install.ps1') {
+    $code = [IO.File]::ReadAllText((Join-Path $Root $file), [Text.Encoding]::UTF8)
+    Check "$file draws no progress bar and no wide separator" (($code -notmatch 'Write-Progress') -and (-not $code.Contains([string][char]0x2501)))
+}
 Check 'Install-Module child turns progress bars off' ($source -match "(?s)``\`$ProgressPreference = 'SilentlyContinue'\s+Set-PSRepository")
 
 # --- the report itself, with a user folder inside the error text
