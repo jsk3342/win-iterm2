@@ -40,16 +40,85 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 의 진행 막대는 한국어 콘솔에서 화면을 저장하다 IndexOutOfRangeException 을 낼 수 있고,
+# 위의 Stop 때문에 설치 전체가 끊깁니다. 단계는 글로 보여 주므로 막대를 쓰지 않습니다.
+$ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $Stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 
 # ─────────────────────────── 출력 헬퍼 ───────────────────────────
 $script:StepNo = 0
-function Step($msg) { $script:StepNo++; Write-Host "`n[$script:StepNo] $msg" -ForegroundColor Cyan }
+$script:StepLabel = '시작 전'
+$script:Problems = @()
+$script:Stopwatch = [Diagnostics.Stopwatch]::StartNew()
+$script:Heartbeat = $null
+
+# winget·글꼴 내려받기는 출력을 버려서 멈춘 것처럼 보입니다. 15초마다 경과 시간을 찍습니다.
+function Stop-StepHeartbeat {
+    if ($null -ne $script:Heartbeat) {
+        $script:Heartbeat.Stop()
+        $script:Heartbeat.Dispose()
+        $script:Heartbeat = $null
+    }
+}
+function Start-StepHeartbeat {
+    Stop-StepHeartbeat
+    $hb = [powershell]::Create()
+    $null = $hb.AddScript({
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        while ($watch.Elapsed.TotalMinutes -lt 60) {
+            Start-Sleep -Seconds 15
+            # 다른 프로그램이 줄을 끝내지 않은 채 쓰는 중이면 줄을 바꿔 글이 이어 붙지 않게 합니다.
+            try { if ([Console]::CursorLeft -gt 0) { [Console]::WriteLine() } } catch { }
+            [Console]::WriteLine("         설치 작업 실행 중 · 경과 $([int]$watch.Elapsed.TotalSeconds)초 · 완료 문구를 기다려주세요.")
+        }
+    })
+    $null = $hb.BeginInvoke()
+    $script:Heartbeat = $hb
+}
+
+# 끊기거나 일부만 끝나면 고객이 여러 번 나눠 붙여넣지 않도록 진단 내용을 한 덩어리로 보여 줍니다.
+function Write-FailureReport($result, $message) {
+    $safe = [string]$message
+    if ($env:USERPROFILE) { $safe = $safe.Replace($env:USERPROFILE, '~') }
+    $safe = ($safe -replace '\s+', ' ').Trim()
+    if ($safe.Length -gt 800) { $safe = $safe.Substring(0, 800) + ' ...' }
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $width = try { $Host.UI.RawUI.BufferSize.Width } catch { '알 수 없음' }
+    $report = @(
+        '---------- 설치 실패 보고 시작 ----------'
+        '설치기: win-iterm2 (터미널 꾸미기)'
+        "결과: $result"
+        "단계: $script:StepLabel"
+        "오류: $safe"
+        "걸린 시간: $([int]$script:Stopwatch.Elapsed.TotalSeconds)초"
+        "OS: Windows $([Environment]::OSVersion.Version)"
+        "칩: $env:PROCESSOR_ARCHITECTURE"
+        "PowerShell: $($PSVersionTable.PSVersion) / 코드페이지 $([Console]::OutputEncoding.CodePage) / 창 폭 $width / 관리자 $isAdmin"
+        '---------- 설치 실패 보고 끝 ----------'
+    ) -join "`r`n"
+    Write-Host ''
+    Write-Host $report
+    $copied = $false
+    try {
+        Set-Clipboard -Value $report
+        $copied = ((Get-Clipboard -Raw).Trim() -eq $report.Trim())
+    }
+    catch { $copied = $false }
+    if ($copied) { Write-Host '  위 보고를 복사해 두었습니다. 설치 도우미 입력칸에 그대로 붙여넣어 주세요.' -ForegroundColor Yellow }
+    else { Write-Host '  위 보고를 시작 줄부터 끝 줄까지 복사해 설치 도우미 입력칸에 붙여넣어 주세요.' -ForegroundColor Yellow }
+}
+
+function Step($msg) {
+    $script:StepNo++
+    $script:StepLabel = "$script:StepNo/7 $msg"
+    Start-StepHeartbeat
+    Write-Host "`n[$script:StepNo] $msg" -ForegroundColor Cyan
+}
 function Ok($msg) { Write-Host "    OK   $msg" -ForegroundColor Green }
 function Skip($msg) { Write-Host "    --   $msg" -ForegroundColor DarkGray }
-function Warn($msg) { Write-Host "    !    $msg" -ForegroundColor Yellow }
+function Warn($msg) { $script:Problems += "[$script:StepLabel] $msg"; Write-Host "    !    $msg" -ForegroundColor Yellow }
 
 # ───────────────────────── 공통 유틸리티 ─────────────────────────
 
@@ -81,6 +150,7 @@ function Install-PSModule($name) {
     $found = pwsh -NoProfile -Command "[bool](Get-Module -ListAvailable -Name $name)" 2>$null
     if ($found -eq 'True') { Skip "$name 이미 설치됨"; return }
     pwsh -NoProfile -Command @"
+`$ProgressPreference = 'SilentlyContinue'
 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
 Install-Module $name -Scope CurrentUser -Force -AllowClobber -AcceptLicense
 "@ | Out-Null
@@ -173,7 +243,10 @@ $r.GetEnumerator() | ForEach-Object { "CHECK {0} {1}" -f $_.Key, $(if ($_.Value)
     [System.IO.File]::WriteAllText($vp, $verify, (New-Object Text.UTF8Encoding($true)))
     pwsh -NoLogo -File $vp 2>&1 | ForEach-Object {
         $line = [string]$_
-        if ($line -match '^CHECK (\w+) (OK|FAIL)$') { Write-Host "    $(Format-VerifyLine $labels[$Matches[1]] $Matches[2])" }
+        if ($line -match '^CHECK (\w+) (OK|FAIL)$') {
+            if ($Matches[2] -eq 'FAIL') { $script:Problems += "[$script:StepLabel] 검증 실패: $($labels[$Matches[1]])" }
+            Write-Host "    $(Format-VerifyLine $labels[$Matches[1]] $Matches[2])"
+        }
         else { Write-Host "    $line" }
     }
     Remove-Item $vp -Force -ErrorAction Ignore
@@ -215,6 +288,9 @@ function Set-Prop($obj, $name, $value) {
 }
 
 # ═══════════════════════════ 실행 ═══════════════════════════
+
+# 어떤 이유로 끊겨도 경과 표시를 멈추고 실패 보고를 남깁니다. 들여쓰기는 바꾸지 않습니다.
+try {
 
 Write-Host @"
 
@@ -355,7 +431,8 @@ else {
         #      동적 프로필 source 로 찾습니다 (환경마다 다를 수 있음).
         $ps7 = $list | Where-Object { $_.source -eq 'Windows.Terminal.PowershellCore' } | Select-Object -First 1
         if ($ps7) { Set-Prop $S 'defaultProfile' $ps7.guid; Ok "기본 프로필: $($ps7.name)" }
-        else { Warn 'PowerShell 7 프로필을 찾지 못해 기본 프로필은 그대로 둡니다.' }
+        # 터미널을 한 번 열면 생기는 프로필이라 실패가 아닙니다. 실패 보고에 넣지 않습니다.
+        else { Write-Host '    !    PowerShell 7 프로필을 찾지 못해 기본 프로필은 그대로 둡니다.' -ForegroundColor Yellow }
 
         # PS 5.1 의 ConvertTo-Json 은 비ASCII 를 \uXXXX 로 이스케이프하므로
         # 인코딩 사고 없이 안전합니다. Depth 를 반드시 올려야 합니다.
@@ -368,6 +445,7 @@ else {
 # ── 7. 검증 ──────────────────────────────────────────────────
 Step '검증'
 Invoke-InstallVerify
+Stop-StepHeartbeat
 
 Write-Host @"
 
@@ -390,4 +468,20 @@ if (-not $script:FontReady) {
   프롬프트 아이콘이 네모로 보일 수 있습니다. 인터넷 연결을 확인한 뒤 이 설치를 한 번 더 실행하세요.
 
 "@ -ForegroundColor Yellow
+}
+
+if ($script:Problems.Count) {
+    # 문제마다 어느 단계인지 붙어 있어, 마지막 단계 이름을 적으면 오히려 헷갈립니다.
+    $script:StepLabel = '끝까지 진행함'
+    Write-FailureReport '일부 미완료' ($script:Problems -join ' / ')
+}
+
+}
+catch {
+    Stop-StepHeartbeat
+    Write-FailureReport '중단됨' $_.Exception.Message
+    throw
+}
+finally {
+    Stop-StepHeartbeat
 }

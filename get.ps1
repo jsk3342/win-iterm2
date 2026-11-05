@@ -5,6 +5,9 @@
 # install.ps1 keeps its BOM (Korean text), so it is saved to a file and run with -File.
 & {
     $ErrorActionPreference = 'Stop'
+    # Windows PowerShell 5.1 can throw IndexOutOfRangeException while saving the screen under a
+    # progress bar on Korean consoles, and Stop then aborts the install. Scoped to this block.
+    $ProgressPreference = 'SilentlyContinue'
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $p = Join-Path $env:TEMP 'win-iterm2-install.ps1'
     Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/jsk3342/win-iterm2/main/install.ps1' -OutFile $p
