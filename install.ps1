@@ -87,6 +87,56 @@ Install-Module $name -Scope CurrentUser -Force -AllowClobber -AcceptLicense
     Ok "$name 설치됨"
 }
 
+# 글꼴이 실제로 깔렸는지 봅니다. 설치 프로그램의 종료 코드만 믿으면 안 됩니다
+# (옵션이 사라져 설치를 안 하거나, 파일별 실패를 삼키고 0 으로 끝난 적이 있습니다).
+# GDI+ 목록은 방금 설치한 글꼴을 놓칠 수 있어 레지스트리 등록과 파일도 함께 봅니다.
+function Test-FontInstalled($face) {
+    Add-Type -AssemblyName System.Drawing
+    $families = (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name
+    if ($families -contains $face) { return $true }
+
+    $pattern = '^' + [regex]::Escape($face) + '( Regular)? \((TrueType|OpenType)\)$'
+    foreach ($key in 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts',
+                     'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts') {
+        $entries = Get-ItemProperty -Path $key -ErrorAction Ignore
+        if (-not $entries) { continue }
+        foreach ($prop in $entries.PSObject.Properties) {
+            if ($prop.Name -notmatch $pattern) { continue }
+            $file = [string]$prop.Value
+            if (-not [IO.Path]::IsPathRooted($file)) { $file = Join-Path $env:WINDIR "Fonts\$file" }
+            if (Test-Path -LiteralPath $file) { return $true }
+        }
+    }
+    return $false
+}
+
+# 돌려주는 값 = 터미널 설정에 이 글꼴 이름을 넣어도 되는가.
+function Install-NerdFont($face) {
+    if (Test-FontInstalled $face) { Skip "$face 이미 설치됨"; return $true }
+
+    $detail = ''
+    try {
+        # 사용자 범위(%LOCALAPPDATA%)에 설치 — 관리자 권한 불필요
+        # Out-Host: 출력이 이 함수의 반환값에 섞이지 않게 합니다.
+        oh-my-posh font install meslo | Out-Host
+        $detail = "exit $LASTEXITCODE"
+    }
+    catch { $detail = $_.Exception.Message }
+
+    if (Test-FontInstalled $face) { Ok "$face 설치됨"; return $true }
+    Warn "$face 를 설치하지 못했습니다 ($detail). 터미널은 기본 글꼴로 둡니다."
+    return $false
+}
+
+# 터미널 설정에 넣을 글꼴 이름. $null = face 를 비워 터미널 기본 글꼴을 씁니다.
+# 없는 글꼴 이름이 설정에 있으면 터미널을 열 때마다 경고창이 뜨므로,
+# 예전 실행이 넣어 둔 같은 이름도 함께 걷어냅니다. 사용자가 고른 다른 글꼴은 그대로 둡니다.
+function Resolve-FontFace($face, [bool]$fontReady, $currentFace) {
+    if ($fontReady) { return $face }
+    if ($currentFace -and $currentFace -ne $face) { return $currentFace }
+    return $null
+}
+
 # 리포를 클론했으면 로컬 파일을, `irm | iex` 로 실행했으면 GitHub raw 를 씁니다.
 # 어느 쪽이든 바이트 단위로 그대로 옮깁니다 — 텍스트로 읽으면 Nerd Font 글리프가 깨집니다.
 $script:LocalRoot = $null
@@ -150,20 +200,12 @@ if (-not (Test-CommandExists pwsh)) {
 
 # ── 2. Nerd Font ─────────────────────────────────────────────
 Step 'Nerd Font 설치'
+$script:FontReady = $true   # -SkipFont = 글꼴은 사용자가 책임진다는 뜻
 if ($SkipFont) {
     Skip '-SkipFont 지정됨'
 }
 else {
-    Add-Type -AssemblyName System.Drawing
-    $installed = (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name
-    if ($installed -contains $FontFace) {
-        Skip "$FontFace 이미 설치됨"
-    }
-    else {
-        # --headless 로 TUI 없이 사용자 범위(%LOCALAPPDATA%)에 설치 — 관리자 권한 불필요
-        oh-my-posh font install meslo --headless
-        Ok "$FontFace 설치됨"
-    }
+    $script:FontReady = Install-NerdFont $FontFace
 }
 
 # ── 3. PowerShell 모듈 ───────────────────────────────────────
@@ -243,10 +285,13 @@ else {
         $defaults = $T.profiles.defaults
         Set-Prop $defaults 'colorScheme' $Scheme
         Set-Prop $defaults 'opacity'     $Opacity
-        $defaults.font.face = $FontFace
         $defaults.font.size = $FontSize
+        $face = Resolve-FontFace $FontFace $script:FontReady $S.profiles.defaults.font.face
+        if ($face) { $defaults.font.face = $face }
+        else { $defaults.font.PSObject.Properties.Remove('face') }
         Set-Prop $S.profiles 'defaults' $defaults
-        Ok "폰트 $FontFace ${FontSize}pt / 배색 $Scheme / 투명도 $Opacity%"
+        $faceLabel = if ($face) { $face } else { '터미널 기본 글꼴' }
+        Ok "폰트 $faceLabel ${FontSize}pt / 배색 $Scheme / 투명도 $Opacity%"
 
         # 6-3. 단축키 (같은 id 가 이미 있으면 사용자 것을 존중)
         $kb = @()
@@ -299,7 +344,8 @@ Write-Host @"
 
   설치 완료.
 
-  Windows Terminal 을 새로 열면 적용됩니다.
+  Windows Terminal 창을 전부 닫고 새로 열면 적용됩니다.
+  (열려 있던 창에는 글꼴 경고가 뜰 수 있어요. 새로 열면 사라집니다.)
   배색 변경은  Ctrl+,  ->  프로필 -> 기본값 -> 모양 -> 색 구성표
 
   z <디렉터리 일부>   자주 가는 폴더로 점프
@@ -308,3 +354,11 @@ Write-Host @"
   Ctrl+Shift+D / E    세로 / 가로 분할
 
 "@ -ForegroundColor Green
+
+if (-not $script:FontReady) {
+    Write-Host @"
+  글꼴만 설치하지 못했습니다. 터미널과 클로드 코드는 그대로 쓸 수 있고,
+  프롬프트 아이콘이 네모로 보일 수 있습니다. 인터넷 연결을 확인한 뒤 이 설치를 한 번 더 실행하세요.
+
+"@ -ForegroundColor Yellow
+}

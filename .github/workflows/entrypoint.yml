@@ -8,12 +8,23 @@ on:
 jobs:
   windows-powershell-51:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
       - name: Entrypoint tests (Windows PowerShell 5.1)
         shell: powershell
         run: .\tests\test-installer-entrypoint.ps1
+
+      - name: Font install tests (Windows PowerShell 5.1)
+        shell: powershell
+        timeout-minutes: 5
+        run: .\tests\test-font-install.ps1
+
+      - name: Full installer, settings read back (Windows PowerShell 5.1)
+        shell: powershell
+        timeout-minutes: 12
+        run: .\tests\test-install-settings.ps1
 
       # The exact command users paste, pinned to this commit so raw caching can't serve a stale file.
       - name: irm get.ps1 | iex reaches install.ps1

@@ -53,7 +53,7 @@ oh-my-posh cache clear
 일반 폰트에는 그 자리가 비어 있습니다. ([원리](how-it-works.md#4층--폰트-장식이-아니라-필수))
 
 ```powershell
-oh-my-posh font install meslo --headless
+oh-my-posh font install meslo
 ```
 
 **원인 B — 폰트는 깔았는데 터미널이 안 쓴다.** 이게 더 흔합니다.

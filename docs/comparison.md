@@ -47,7 +47,7 @@ ChrisTitusTech는 Nerd Font를 **설치만 하고** Windows Terminal 설정은 �
 ChrisTitusTech는 `Test-IsAdministrator` 체크로 시작하고, 폰트를 `C:\Windows\Fonts`에
 시스템 설치합니다.
 
-이 리포는 `oh-my-posh font install meslo --headless`로 **사용자 범위**
+이 리포는 `oh-my-posh font install meslo`로 **사용자 범위**
 (`%LOCALAPPDATA%\Microsoft\Windows\Fonts`)에 설치하고, winget도 사용자 범위로 씁니다.
 회사 PC처럼 관리자 권한이 없는 환경에서도 돌아갑니다.
 
