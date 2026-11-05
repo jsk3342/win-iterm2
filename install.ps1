@@ -117,8 +117,10 @@ function Install-NerdFont($face) {
     $detail = ''
     try {
         # 사용자 범위(%LOCALAPPDATA%)에 설치 — 관리자 권한 불필요
+        # 이름(meslo) 대신 주소를 줍니다. 이름은 GitHub API 로 찾는데, 같은 IP 를 나눠 쓰면
+        # 비로그인 호출 한도에 걸려 실패합니다(CI 에서 실측). 주소는 그 조회를 건너뜁니다.
         # Out-Host: 출력이 이 함수의 반환값에 섞이지 않게 합니다.
-        oh-my-posh font install meslo | Out-Host
+        oh-my-posh font install 'https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip' | Out-Host
         $detail = "exit $LASTEXITCODE"
     }
     catch { $detail = $_.Exception.Message }
