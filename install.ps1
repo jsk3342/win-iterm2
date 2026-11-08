@@ -261,8 +261,7 @@ function Resolve-PwshProfile {
 }
 
 # 새 프로필이 PowerShell 7 에서 실제로 동작하는지 확인합니다.
-# 파이프로 넘어오는 pwsh 출력은 UTF-8 인데 PS 5.1 은 콘솔 코드페이지(한글 윈도우는 CP949)로
-# 읽습니다. 그래서 자식은 ASCII 코드만 내보내고, 한글 이름은 여기서 붙입니다.
+# 자식 출력은 콘솔 코드페이지와 무관하게 UTF-8로 읽고, 검증 코드에 한글 이름을 붙입니다.
 function Invoke-InstallVerify {
     $verify = @'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8

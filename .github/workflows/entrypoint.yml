@@ -16,6 +16,11 @@ jobs:
         shell: powershell
         run: .\tests\test-installer-entrypoint.ps1
 
+      - name: Profile path and complete verification errors (Windows PowerShell 5.1)
+        shell: powershell
+        timeout-minutes: 3
+        run: .\tests\test-profile-verify.ps1
+
       - name: Font install tests (Windows PowerShell 5.1)
         shell: powershell
         timeout-minutes: 5
@@ -25,11 +30,6 @@ jobs:
         shell: powershell
         timeout-minutes: 12
         run: .\tests\test-install-settings.ps1
-
-      - name: Profile path and complete verification errors (Windows PowerShell 5.1)
-        shell: powershell
-        timeout-minutes: 3
-        run: .\tests\test-profile-verify.ps1
 
       - name: Step 7 on a Korean console (code page 949)
         shell: powershell

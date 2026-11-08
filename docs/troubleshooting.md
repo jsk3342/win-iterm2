@@ -225,3 +225,18 @@ winget uninstall JanDeDobbeleer.OhMyPosh
 winget uninstall ajeetdsouza.zoxide
 winget uninstall junegunn.fzf
 ```
+
+
+## 마지막 검증에서 `win-iterm2-verify-…ps1:1` 오류가 난다
+
+프로필을 저장한 경로와 PowerShell 7의 실제 `$PROFILE` 경로가 다르면 발생할 수
+있습니다. OneDrive 또는 회사 정책으로 문서 폴더가 이동한 환경이 해당합니다.
+설치기는 이제 PowerShell 7에서 실제 경로를 조회해서 그 위치에 저장합니다.
+
+또한 Windows PowerShell 5.1에서 검증 오류의 첫 줄만 받고 중단하던 처리를
+고쳤습니다. 오류 출력 전체를 UTF-8로 수집하고, 종료 코드와 다섯 검증 항목을
+확인합니다. 프로필은 검증 중 한 번만 불러옵니다.
+
+기존 설치 명령을 다시 실행하면 수정된 설치기를 받습니다. 실패가 계속되면
+새로 출력된 설치 실패 보고를 설치 도우미에 보내 주세요. 같은 경로 오류라도
+파일 누락, 실행 정책, 프로필 내부 오류는 원인이 다르므로 보고 없이 확정하지 않습니다.

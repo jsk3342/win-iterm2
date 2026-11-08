@@ -70,6 +70,9 @@ $script:Stopwatch = [Diagnostics.Stopwatch]::StartNew()
 $shown = (Write-FailureReport 'x' "cannot read $env:USERPROFILE\secret.txt`r`nsecond line") 6>&1 | Out-String
 Check 'report hides the user folder' ((-not $shown.Contains($env:USERPROFILE)) -and $shown.Contains('~\secret.txt'))
 Check 'report keeps a multi-line error on one line' ($shown -match 'secret\.txt second line')
+$shown = (Write-FailureReport 'x' ("$([char]27)[31;1mFIRST_LINE$([char]27)[0m`nSECOND_LINE")) 6>&1 | Out-String
+Check 'report strips ANSI and retains the error details' ((-not $shown.Contains([string][char]27)) -and $shown.Contains('FIRST_LINE SECOND_LINE'))
+
 
 # --- font install fails: finishes with exit 0 and a partial report naming the font
 $r = Run-Installer @('-FontFace', 'NoSuchFontX') $null

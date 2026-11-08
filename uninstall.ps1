@@ -15,6 +15,7 @@ $ErrorActionPreference = 'Stop'
 
 $targets = @(
     (Join-Path $HOME '.config\oh-my-posh\snazzy.omp.json')
+    (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'PowerShell\Microsoft.PowerShell_profile.ps1')
     (Join-Path $HOME 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')
     "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
     "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"
@@ -22,7 +23,7 @@ $targets = @(
 )
 
 $restored = 0
-foreach ($t in $targets) {
+foreach ($t in ($targets | Select-Object -Unique)) {
     $dir = Split-Path $t -Parent
     if (-not (Test-Path $dir)) { continue }
 
