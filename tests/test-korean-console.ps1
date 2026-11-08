@@ -35,7 +35,7 @@ try {
     `$text = [IO.File]::ReadAllText('$(Join-Path $Root 'install.ps1')', [Text.Encoding]::UTF8)
     `$tokens = `$null; `$errors = `$null
     `$ast = [System.Management.Automation.Language.Parser]::ParseInput(`$text.TrimStart([char]0xFEFF), [ref]`$tokens, [ref]`$errors)
-    foreach (`$name in 'Format-VerifyLine', 'Invoke-InstallVerify') {
+    foreach (`$name in 'Invoke-PwshFile', 'Format-VerifyLine', 'Invoke-InstallVerify') {
         `$fn = `$ast.Find({ param(`$n) `$n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and `$n.Name -eq `$name }, `$true)
         . ([scriptblock]::Create(`$fn.Extent.Text))
     }

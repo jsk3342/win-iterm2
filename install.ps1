@@ -82,6 +82,7 @@ function Start-StepHeartbeat {
 function Write-FailureReport($result, $message) {
     $safe = [string]$message
     if ($env:USERPROFILE) { $safe = $safe.Replace($env:USERPROFILE, '~') }
+    $safe = $safe -replace '\x1B\[[0-?]*[ -/]*[@-~]', ''
     $safe = ($safe -replace '\s+', ' ').Trim()
     if ($safe.Length -gt 800) { $safe = $safe.Substring(0, 800) + ' ...' }
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -218,12 +219,59 @@ function Format-VerifyLine($label, $result) {
     return ($label + (' ' * [Math]::Max(1, 14 - $width)) + $result)
 }
 
+# PS 5.1 turns redirected native stderr into terminating errors under Stop.
+# Capture both streams independently, in UTF-8, before deciding whether the child failed.
+function Invoke-PwshFile([string]$Path) {
+    $info = New-Object Diagnostics.ProcessStartInfo
+    $info.FileName = (Get-Command pwsh -ErrorAction Stop).Source
+    $info.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $Path + '"'
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $info.StandardOutputEncoding = [Text.Encoding]::UTF8
+    $info.StandardErrorEncoding = [Text.Encoding]::UTF8
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $info
+    try {
+        $null = $process.Start()
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(60000)) {
+            $process.Kill()
+            throw 'PowerShell verification timed out after 60 seconds.'
+        }
+        return @{ ExitCode = $process.ExitCode; Output = $stdout.Result; Error = $stderr.Result }
+    }
+    finally { $process.Dispose() }
+}
+
+function Resolve-PwshProfile {
+    $path = Join-Path $env:TEMP ("win-iterm2-profile-" + [guid]::NewGuid().ToString('N') + '.ps1')
+    try {
+        [IO.File]::WriteAllText($path, '[Console]::OutputEncoding = [Text.Encoding]::UTF8; $PROFILE.CurrentUserCurrentHost', (New-Object Text.UTF8Encoding($true)))
+        $result = Invoke-PwshFile $path
+        $profilePath = $result.Output.Trim()
+        if ($result.ExitCode -ne 0 -or -not [IO.Path]::IsPathRooted($profilePath)) {
+            throw "Cannot resolve PowerShell 7 profile: $($result.Error)"
+        }
+        return $profilePath
+    }
+    finally { Remove-Item $path -Force -ErrorAction Ignore }
+}
+
 # 새 프로필이 PowerShell 7 에서 실제로 동작하는지 확인합니다.
 # 파이프로 넘어오는 pwsh 출력은 UTF-8 인데 PS 5.1 은 콘솔 코드페이지(한글 윈도우는 CP949)로
 # 읽습니다. 그래서 자식은 ASCII 코드만 내보내고, 한글 이름은 여기서 붙입니다.
 function Invoke-InstallVerify {
     $verify = @'
-. $PROFILE
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$ErrorActionPreference = 'Stop'
+try { . $PROFILE }
+catch {
+    [Console]::Error.WriteLine(($_ | Format-List * -Force | Out-String))
+    exit 1
+}
 $r = [ordered]@{}
 $r['profile'] = ($Error.Count -eq 0)
 $r['prompt']  = [bool](Get-Command prompt -ErrorAction Ignore)
@@ -241,15 +289,23 @@ $r.GetEnumerator() | ForEach-Object { "CHECK {0} {1}" -f $_.Key, $(if ($_.Value)
     }
     $vp = Join-Path $env:TEMP "win-iterm2-verify-$Stamp.ps1"
     [System.IO.File]::WriteAllText($vp, $verify, (New-Object Text.UTF8Encoding($true)))
-    pwsh -NoLogo -File $vp 2>&1 | ForEach-Object {
-        $line = [string]$_
-        if ($line -match '^CHECK (\w+) (OK|FAIL)$') {
-            if ($Matches[2] -eq 'FAIL') { $script:Problems += "[$script:StepLabel] 검증 실패: $($labels[$Matches[1]])" }
-            Write-Host "    $(Format-VerifyLine $labels[$Matches[1]] $Matches[2])"
+    try {
+        $result = Invoke-PwshFile $vp
+        $seen = @{}
+        foreach ($line in ($result.Output -split '\r?\n')) {
+            if ($line -match '^CHECK (\w+) (OK|FAIL)$' -and $labels.ContainsKey($Matches[1])) {
+                $seen[$Matches[1]] = $true
+                if ($Matches[2] -eq 'FAIL') { $script:Problems += "[$script:StepLabel] 검증 실패: $($labels[$Matches[1]])" }
+                Write-Host "    $(Format-VerifyLine $labels[$Matches[1]] $Matches[2])"
+            }
+            elseif ($line) { Write-Host "    $line" }
         }
-        else { Write-Host "    $line" }
+        if ($result.ExitCode -ne 0 -or $result.Error.Trim()) {
+            throw "PowerShell profile verification failed (exit $($result.ExitCode)): $($result.Error.Trim()) $($result.Output.Trim())"
+        }
+        if ($seen.Count -ne $labels.Count) { throw 'PowerShell verification did not return all five checks.' }
     }
-    Remove-Item $vp -Force -ErrorAction Ignore
+    finally { Remove-Item $vp -Force -ErrorAction Ignore }
 }
 
 # 리포를 클론했으면 로컬 파일을, `irm | iex` 로 실행했으면 GitHub raw 를 씁니다.
@@ -345,7 +401,7 @@ Ok '설정 캐시 비움'
 
 # ── 5. PowerShell 프로필 ─────────────────────────────────────
 Step 'PowerShell 프로필 배치'
-$pwshProfile = Join-Path $HOME 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'
+$pwshProfile = Resolve-PwshProfile
 Backup-File $pwshProfile
 Copy-Asset 'config/profile.ps1' $pwshProfile
 Ok $pwshProfile
